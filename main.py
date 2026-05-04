@@ -249,7 +249,7 @@ def get_latest_data():
 
         soil_query = f'''
         from(bucket: "{INFLUXDB_BUCKET}")
-          |> range(start: -5m)
+          |> range(start: -1h)
           |> filter(fn: (r) => r._measurement == "sensor_data")
           |> filter(fn: (r) => r.node_type == "soil")
           |> last()
@@ -261,7 +261,7 @@ def get_latest_data():
 
         weather_query = f'''
         from(bucket: "{INFLUXDB_BUCKET}")
-          |> range(start: -5m)
+          |> range(start: -1h)
           |> filter(fn: (r) => r._measurement == "sensor_data")
           |> filter(fn: (r) => r.node_type == "weather")
           |> last()
@@ -272,7 +272,7 @@ def get_latest_data():
 
         image_query = f'''
         from(bucket: "{INFLUXDB_BUCKET}")
-          |> range(start: -5m)
+          |> range(start: -1h)
           |> filter(fn: (r) => r._measurement == "camera_data")
           |> last()
         '''
@@ -294,5 +294,30 @@ def get_latest_data():
             "health_status": health_status,
             "confidence": confidence,
         }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ================== Debug: Raw InfluxDB Records ==================
+@app.get("/debug")
+def debug_influx():
+    try:
+        debug_query = f'''
+        from(bucket: "{INFLUXDB_BUCKET}")
+          |> range(start: -24h)
+          |> filter(fn: (r) => r._measurement == "sensor_data" or r._measurement == "camera_data")
+          |> tail(n: 20)
+        '''
+        rows = []
+        for table in query_api.query(debug_query):
+            for record in table.records:
+                rows.append({
+                    "measurement": record.get_measurement(),
+                    "time": str(record.get_time()),
+                    "field": record.get_field(),
+                    "value": record.get_value(),
+                    "tags": dict(record.values),
+                })
+        return {"count": len(rows), "records": rows}
     except Exception as e:
         return {"error": str(e)}
