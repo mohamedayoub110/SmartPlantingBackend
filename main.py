@@ -272,7 +272,7 @@ def get_latest_data():
 
         image_query = f'''
         from(bucket: "{INFLUXDB_BUCKET}")
-          |> range(start: -1h)
+          |> range(start: -24h)
           |> filter(fn: (r) => r._measurement == "camera_data")
           |> last()
         '''
