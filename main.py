@@ -12,12 +12,36 @@ def home():
     <html>
       <head>
         <title>Smart Planting Camera</title>
-        <meta http-equiv="refresh" content="2">
+        <style>
+          body { text-align:center; font-family:Arial; background:#111; color:#eee; margin:0; padding:20px; }
+          img  { max-width:90%; border:3px solid #444; border-radius:8px; }
+          #fps { font-size:14px; color:#aaa; margin-top:8px; }
+        </style>
       </head>
-      <body style="text-align:center; font-family:Arial;">
+      <body>
         <h1>Smart Planting ESP32-CAM</h1>
-        <img src="/latest.jpg" style="max-width:90%; border:2px solid black;">
-        <p>Auto-refreshes every 2 seconds</p>
+        <img id="feed" src="/latest.jpg">
+        <p id="fps">Connecting...</p>
+        <script>
+          let frames = 0, last = Date.now();
+          function refresh() {
+            const img = document.getElementById('feed');
+            const next = new Image();
+            next.onload = function() {
+              img.src = next.src;
+              frames++;
+              const now = Date.now();
+              if (now - last >= 1000) {
+                document.getElementById('fps').textContent = frames + ' fps';
+                frames = 0; last = now;
+              }
+              setTimeout(refresh, 50);
+            };
+            next.onerror = function() { setTimeout(refresh, 500); };
+            next.src = '/latest.jpg?t=' + Date.now();
+          }
+          refresh();
+        </script>
       </body>
     </html>
     """)
