@@ -61,8 +61,8 @@ def write_sensor_data(node_id, node_type, metrics, time_window):
     elif node_type == "weather":
         point.field("air_temperature", float(metrics.get("v1", 0)))
         point.field("humidity", float(metrics.get("v2", 0)))
-        point.field("pressure", float(metrics.get("v3", 0)))
-        point.field("light", float(metrics.get("v4", 0)))
+        point.field("light", float(metrics.get("v3", 0)))
+        point.field("rain", float(metrics.get("v4", 0)))
         point.field("air_quality", float(metrics.get("v5", 0)))
 
     write_api.write(bucket=INFLUXDB_BUCKET, record=point)
@@ -161,8 +161,8 @@ def dashboard():
               <h3>Weather Station</h3>
               <div class="metric"><span class="label">Air Temperature</span><span class="value" id="air_temperature">--</span></div>
               <div class="metric"><span class="label">Humidity</span><span class="value" id="humidity">--</span></div>
-              <div class="metric"><span class="label">Pressure</span><span class="value" id="pressure">--</span></div>
               <div class="metric"><span class="label">Light</span><span class="value" id="light">--</span></div>
+              <div class="metric"><span class="label">Rain</span><span class="value" id="rain">--</span></div>
               <div class="metric"><span class="label">Air Quality</span><span class="value" id="air_quality">--</span></div>
             </div>
           </div>
