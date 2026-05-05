@@ -67,6 +67,47 @@ def write_sensor_data(node_id, node_type, metrics, time_window):
     write_api.write(bucket=INFLUXDB_BUCKET, record=point)
 
 
+# ================== Irrigation Recommendation ==================
+def compute_irrigation_minutes(snapshot: dict) -> float:
+    soil    = snapshot.get("soil", {})
+    weather = snapshot.get("weather", {})
+
+    moisture = soil.get("v1", 50.0)      # soil moisture %
+    air_temp = weather.get("v1", 25.0)   # air temperature °C
+    humidity = weather.get("v2", 50.0)   # humidity %
+    light    = weather.get("v3", 50.0)   # light %
+
+    # Base irrigation from soil moisture deficit
+    if moisture >= 70:
+        base = 0.0       # soil is wet enough
+    elif moisture >= 50:
+        base = 5.0
+    elif moisture >= 30:
+        base = 10.0
+    elif moisture >= 15:
+        base = 20.0
+    else:
+        base = 30.0
+
+    if base == 0:
+        return 0.0
+
+    # Evapotranspiration adjustment (heat + low humidity + high light = more water needed)
+    et = 1.0
+    if air_temp > 35:
+        et += 0.3
+    elif air_temp > 30:
+        et += 0.15
+    if humidity < 30:
+        et += 0.2
+    elif humidity < 50:
+        et += 0.1
+    if light > 70:
+        et += 0.1
+
+    return round(base * et, 1)
+
+
 # ================== MQTT Subscriber ==================
 async def mqtt_subscriber():
     tls_ctx = ssl.create_default_context()
@@ -86,6 +127,7 @@ async def mqtt_subscriber():
                     try:
                         payload = json.loads(message.payload.decode())
                         tw = get_time_window()
+                        sensor_snapshot = {}
                         for node in payload.get("nodes", []):
                             write_sensor_data(
                                 node_id=node.get("node_id"),
@@ -93,7 +135,15 @@ async def mqtt_subscriber():
                                 metrics=node.get("metrics", {}),
                                 time_window=tw,
                             )
+                            sensor_snapshot[node.get("node_type")] = node.get("metrics", {})
                         print(f"MQTT: Stored {len(payload.get('nodes', []))} nodes at {tw}")
+
+                        # Compute irrigation recommendation and send to actuator
+                        minutes = compute_irrigation_minutes(sensor_snapshot)
+                        if minutes > 0:
+                            cmd = json.dumps({"action": "irrigate", "minutes": round(minutes, 1)})
+                            await client.publish("smartplant/actuator", cmd, qos=1)
+                            print(f"MQTT: Sent irrigation command — {minutes:.1f} min")
                     except Exception as e:
                         print(f"MQTT: Processing error: {e}")
         except Exception as e:
