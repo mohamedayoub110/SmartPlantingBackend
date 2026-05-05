@@ -54,10 +54,17 @@ def write_sensor_data(node_id, node_type, metrics, time_window):
         .time(time_window)
 
     if node_type == "soil":
-        point.field("soil_moisture", float(metrics.get("v1", 0)))
-        point.field("soil_temperature", float(metrics.get("v2", 0)))
-        point.field("soil_ph", float(metrics.get("v3", 0)))
-        point.field("soil_npk", float(metrics.get("v4", 0)))
+        moisture = float(metrics.get("v1", 0))
+        soil_temp = float(metrics.get("v2", 0))
+        point.field("soil_moisture", moisture)
+        point.field("soil_temperature", soil_temp)
+        # Derived features
+        if moisture >= 70:
+            point.field("dryness_level", "wet")
+        elif moisture >= 40:
+            point.field("dryness_level", "moderate")
+        else:
+            point.field("dryness_level", "dry")
     elif node_type == "weather":
         point.field("air_temperature", float(metrics.get("v1", 0)))
         point.field("humidity", float(metrics.get("v2", 0)))
@@ -203,8 +210,7 @@ def dashboard():
               <h3>Soil Sensors</h3>
               <div class="metric"><span class="label">Moisture</span><span class="value" id="soil_moisture">--</span></div>
               <div class="metric"><span class="label">Temperature</span><span class="value" id="soil_temperature">--</span></div>
-              <div class="metric"><span class="label">pH</span><span class="value" id="soil_ph">--</span></div>
-              <div class="metric"><span class="label">NPK</span><span class="value" id="soil_npk">--</span></div>
+              <div class="metric"><span class="label">Dryness Level</span><span class="value" id="dryness_level">--</span></div>
             </div>
             <div class="card">
               <h3>Weather Station</h3>
