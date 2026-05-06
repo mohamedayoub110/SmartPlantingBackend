@@ -110,6 +110,8 @@ def compute_irrigation_minutes(soil_metrics: dict, weather_metrics: dict) -> flo
 # ================== MQTT Subscriber ==================
 async def mqtt_subscriber():
     tls_ctx = ssl.create_default_context()
+    tls_ctx.check_hostname = False
+    tls_ctx.verify_mode    = ssl.CERT_NONE
     while True:
         try:
             async with aiomqtt.Client(
