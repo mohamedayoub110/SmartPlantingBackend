@@ -145,8 +145,14 @@ async def mqtt_subscriber():
                             sensor_snapshot[node.get("node_type")] = node.get("metrics", {})
                         print(f"MQTT: Stored {len(payload.get('nodes', []))} nodes at {tw}")
 
-                        # Compute irrigation recommendation and send to actuator
+                        # Compute irrigation recommendation
                         minutes = compute_irrigation_minutes(sensor_snapshot)
+                        # Always store irrigation_minutes in InfluxDB
+                        point = Point("irrigation") \
+                            .field("irrigation_minutes", minutes) \
+                            .time(tw)
+                        write_api.write(bucket=INFLUXDB_BUCKET, record=point)
+                        # Send command to actuator only if irrigation needed
                         if minutes > 0:
                             cmd = json.dumps({"action": "irrigate", "minutes": round(minutes, 1)})
                             await client.publish("smartplant/actuator", cmd, qos=1)
@@ -310,7 +316,8 @@ def get_latest_data():
         '''
         for table in query_api.query(soil_query):
             for record in table.records:
-                soil_data[record.get_field()] = round(record.get_value(), 2)
+                val = record.get_value()
+                soil_data[record.get_field()] = round(val, 2) if isinstance(val, (int, float)) else val
                 timestamp = str(record.get_time())
 
         weather_query = f'''
@@ -322,7 +329,8 @@ def get_latest_data():
         '''
         for table in query_api.query(weather_query):
             for record in table.records:
-                weather_data[record.get_field()] = round(record.get_value(), 2)
+                val = record.get_value()
+                weather_data[record.get_field()] = round(val, 2) if isinstance(val, (int, float)) else val
 
         image_query = f'''
         from(bucket: "{INFLUXDB_BUCKET}")
@@ -340,6 +348,17 @@ def get_latest_data():
                 elif field == "confidence":
                     confidence = record.get_value()
 
+        irrigation_minutes = None
+        irrigation_query = f'''
+        from(bucket: "{INFLUXDB_BUCKET}")
+          |> range(start: -1h)
+          |> filter(fn: (r) => r._measurement == "irrigation")
+          |> last()
+        '''
+        for table in query_api.query(irrigation_query):
+            for record in table.records:
+                irrigation_minutes = record.get_value()
+
         return {
             "timestamp": timestamp,
             "soil": soil_data,
@@ -347,6 +366,7 @@ def get_latest_data():
             "image_url": image_url,
             "health_status": health_status,
             "confidence": confidence,
+            "irrigation_minutes": irrigation_minutes,
         }
     except Exception as e:
         return {"error": str(e)}
